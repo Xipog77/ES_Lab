@@ -83,37 +83,37 @@ def EK_Naive(lst, solver, k):
     AMK_Naive(lst, solver, k)
     ALK_Naive(lst, solver, k)
 
-def EK_NewSequentialCounter(lst, solver, k, R):
+def EK_NewSequentialCounter(lst : list[int], solver, k, R):
     n = len(lst) - 1
 
-    # R[n-1][k]: ma tran co n-1 dong va k cot
+    # R[n][k + 1]: ma tran co n dong va k + 1 cot
     # Rij: i - X1 -> Xi; j - co dung j <= k gia tri true
     # (1) Xi -> Ri,1
-    for i in range(n):
-        solver.add_clause([-lst[i], R[i][0]])
+    for i in range(1, n):
+        solver.add_clause([-lst[i], R[i][1]])
 
     # (2) Ri-1,j -> Ri,j
-    for i in range(1, n):
-        for j in range(min(i,k)):
+    for i in range(2, n):
+        for j in range(1, min(i - 1,k) + 1):
             solver.add_clause([-R[i-1][j], R[i][j]])
 
     # (3) Xi and Ri-1,j-1 -> Ri,j
-    for i in range(1,n):
-        for j in range(1,min(i,k)):
+    for i in range(2,n):
+        for j in range(2,min(i,k) + 1):
             solver.add_clause([-lst[i], -R[i-1][j-1], R[i][j]])
 
     # (4) notXi and notRi-1,j -> notRi,j
-    for i in range(1, n):
-        for j in range(min(i,k)):
+    for i in range(2, n):
+        for j in range(1, min(i - 1,k) + 1):
             solver.add_clause([lst[i], R[i-1][j], -R[i][j]])
 
     # (5) notXi -> notRi,i
-    for i in range(k):
+    for i in range(1, k + 1):
         solver.add_clause([lst[i], -R[i][i]])
 
     # (6) notRi-1,j-1 -> not Ri,j
-    for i in range(1,n):
-        for j in range(1,min(i,k)):
+    for i in range(2,n):
+        for j in range(2,min(i,k) + 1):
             solver.add_clause([R[i-1][j-1], -R[i][j]])
 
     return
@@ -125,33 +125,70 @@ def ALK_NewSequentialCounter(lst, solver, k, R):
     n = len(lst) - 1
     # (7) Rn-1,k or (Xn and Rn-1,k-1)
 
-    solver.add_clause([R[n-1][k-1], lst[n]])
-    solver.add_clause([R[n-1][k-1], R[n-1][k-2]])
+    solver.add_clause([R[n-1][k], lst[n]])
+    solver.add_clause([R[n-1][k], R[n-1][k-1]])
 
 def AMK_NewSequentialCounter(lst, solver, k, R):
     n = len(lst) - 1
 
     # R[n-1][k]: ma tran co n-1 dong va k cot
     # Rij: i - X1 -> Xi; j - co dung j <= k gia tri true
-    # (1) Xi -> Ri,1
-    for i in range(n):
-        solver.add_clause([-lst[i], R[i][0]])
-
-    # (2) Ri-1,j -> Ri,j
-    for i in range(1, n):
-        for j in range(min(i, k)):
-            solver.add_clause([-R[i - 1][j], R[i][j]])
-
-    # (3) Xi and Ri-1,j-1 -> Ri,j
-    for i in range(1, n):
-        for j in range(1, min(i, k)):
-            solver.add_clause([-lst[i], -R[i - 1][j - 1], R[i][j]])
 
     # (8) xi -> notRi-1,k
 
-    for i in range(k, n+1):
-        solver.add_clause([-lst[i], -R[i-1][k-1]])
+    for i in range(k + 1, n+1):
+        solver.add_clause([-lst[i], -R[i-1][k]])
 
+def EK_NewSequentialCounter_Shorten(lst: list[int], solver, k, n):
+    global id_variable
+    x = len(lst) - 1
+    assert x == k * n
+    map_register = [[0 for j in range(k + 1)] for i in range(x + 1)]
+
+    for id in range(1, n + 1):
+        L =  (id - 1) * k
+        for i in range(L + 1, L + k + 1):
+            for j in range(1, i - L + 1):
+                id_variable += 1
+                map_register[i][j] = id_variable
+
+        # (1): If a bit is true, the first bit of the corresponding register is true
+        for i in range(L + 1, L + k + 1):
+            solver.add_clause([lst[i], -map_register[i][i - L]])
+            solver.add_clause([-lst[i], map_register[i][1]])
+
+        # (2): If R[i - 1][j] = 1, R[i][j] = 1;
+        for i in range(L + 2, L + k + 1):
+            for j in range(1, i - L):
+                solver.add_clause([lst[i], map_register[i - 1][j], -map_register[i][j]])
+                solver.add_clause([-map_register[i - 1][j], map_register[i][j]])
+
+        # (3): If bit i is on and R[i - 1][j - 1] = 1, R[i][j] = 1;
+        for i in range(L + 2, L + k + 1):
+            for j in range(2, i - L + 1):
+                solver.add_clause([-lst[i], -map_register[i - 1][j - 1], map_register[i][j]])
+                solver.add_clause([map_register[i - 1][j - 1], -map_register[i][j]])
+
+    bonus = [[0 for j in range(k + 1)] for i in range(n - 1)]
+    for id in range(n - 1):
+        for i in range(1, k + 1):
+            id_variable += 1
+            bonus[id][i] = id_variable
+
+        a = map_register[(id + 2) * k]
+        b = []
+        if id == 0: b = map_register[k]
+        else: b = bonus[id - 1]
+
+        for i in range(1, k + 1):
+            solver.add_clause([-a[i], bonus[id][i]])
+            solver.add_clause([-b[i], bonus[id][i]])
+            for j in range(1, k + 1):
+                if i + j <= k: solver.add_clause([-a[i], -b[j], bonus[id][i + j]])
+                if i + j - 1 <= k: solver.add_clause([a[i], b[j], -bonus[id][i + j - 1]])
+                if i + j == k + 1: solver.add_clause([-a[i], -b[j]])
+
+    solver.add_clause([bonus[n - 2][k]])
 
 
 
