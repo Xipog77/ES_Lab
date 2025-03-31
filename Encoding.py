@@ -2,16 +2,16 @@ from itertools import product, combinations
 import math
 from Solver import Solver
 
-def ALO (lst, solver):
+def ALO (lst: list[int], solver):
     solver.add_clause(lst)
 
-def AMO_Binomial(lst, solver):
+def AMO_Binomial(lst: list[int], solver):
     N = len(lst)
     for i in range(N):
         for j in range(i+1, N):
             solver.add_clause([-lst[i], -lst[j]])
 
-def AMO_Binary(lst, solver, Y):
+def AMO_Binary(lst: list[int], solver, Y):
     # len(Y) = log2(N)
     N = len(lst)
 
@@ -24,7 +24,7 @@ def AMO_Binary(lst, solver, Y):
     for i in range(N):
         solver.add_clause([-lst[i]] + list(encoding[lst[i]]))
 
-def AMO_SequentialEncounter(lst, solver, S):
+def AMO_SequentialEncounter(lst: list[int], solver, S):
     # len(S) = N - 1
     N = len(lst)
 
@@ -36,7 +36,7 @@ def AMO_SequentialEncounter(lst, solver, S):
 
     solver.add_clause([-S[N-2], -lst[N-1]])
 
-def AMO_Commander(lst, solver, C):
+def AMO_Commander(lst: list[int], solver, C):
     N = len(lst)
     M = len(C)
     count = 0
@@ -55,7 +55,7 @@ def AMO_Commander(lst, solver, C):
         AMO_Binomial(group, solver)
         ALO(group, solver)
 
-def AMO_Product(lst, solver, R, C):
+def AMO_Product(lst: list[int], solver, R, C):
     AMO_Binomial(R, solver)
     AMO_Binomial(C, solver)
 
@@ -67,19 +67,19 @@ def AMO_Product(lst, solver, R, C):
                 solver.add_clause([-lst[count], R[r], C[c]])
                 count += 1
 
-def AMK_Naive(lst, solver, k):
+def AMK_Naive(lst: list[int], solver, k):
     # ALO (k+1) false:
 
     for sub in combinations(lst, k+1):
         solver.add_clause([-var for var in sub])
 
-def ALK_Naive(lst, solver, k):
+def ALK_Naive(lst: list[int], solver, k):
 
     # ALO (n-k+1) true:
     for sub in combinations(lst, len(lst) - k + 1):
         solver.add_clause([var for var in sub])
 
-def EK_Naive(lst, solver, k):
+def EK_Naive(lst: list[int], solver, k):
     AMK_Naive(lst, solver, k)
     ALK_Naive(lst, solver, k)
 
@@ -118,7 +118,7 @@ def EK_NewSequentialCounter(lst : list[int], solver, k, R):
 
     return
 
-def ALK_NewSequentialCounter(lst, solver, k, R):
+def ALK_NewSequentialCounter(lst: list[int], solver, k, R):
     # (1) -> (6):
     EK_NewSequentialCounter(lst, solver, k, R)
 
@@ -128,7 +128,7 @@ def ALK_NewSequentialCounter(lst, solver, k, R):
     solver.add_clause([R[n-1][k], lst[n]])
     solver.add_clause([R[n-1][k], R[n-1][k-1]])
 
-def AMK_NewSequentialCounter(lst, solver, k, R):
+def AMK_NewSequentialCounter(lst: list[int], solver, k, R):
     n = len(lst) - 1
 
     # R[n-1][k]: ma tran co n-1 dong va k cot
@@ -189,6 +189,38 @@ def EK_NewSequentialCounter_Shorten(lst: list[int], solver, k, n):
                 if i + j == k + 1: solver.add_clause([-a[i], -b[j]])
 
     solver.add_clause([bonus[n - 2][k]])
+
+def AMO_StaireCase(lst: list[int], solver, R, w):
+    #w: width: so nhom
+    #R[n//w][w]
+    n = len(lst)
+    groups = (n + w - 1) // w
+
+    # (1) (X_i → R_{g,1})
+    for i in range(n):
+        group = i // w
+        solver.add_clause([-lst[i], R[group][i%w]])
+
+    # (2) (R_{g,j} → R_{g,j+1})
+    for group in range(groups):
+        for j in range(w - 1):
+            solver.add_clause([-R[group][j], R[group][j + 1]])
+
+    # (3) (X_i → R_{g,j-1} ∨ ¬R_{g,j})
+    for i in range(n):
+        group = i // w
+        for j in range(1, w):
+            solver.add_clause([lst[i], R[group][j-1], -R[group][j]])
+
+    # (4) (¬R_{g,j} ∨ ¬R_{g,j+1})
+    for group in range(groups):
+        for j in range(w - 1):
+            solver.add_clause([-R[group][j], -R[group][j + 1]])
+
+
+
+
+
 
 
 
